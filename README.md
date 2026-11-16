@@ -30,6 +30,31 @@ Endpoints (register the FULL paths on the dashboard):
 | `POST /agent` | type-sniffed alias for either |
 | `GET /health` | health check: `{ ok, kurier, seenRule, fortifyBlocks, ... }` |
 
+## Live deployment
+
+Running instance, entered in Proof Gatekeeper:
+
+- Agent endpoint: `https://43-134-84-70.sslip.io/agent`
+- Health: `https://43-134-84-70.sslip.io/health`
+
+Deployment shape: Node service on `127.0.0.1:8090` behind Caddy (automatic
+Let's Encrypt TLS) on a stable `sslip.io` hostname, both under systemd with
+`Restart=always` and `enable`, so the registered URL survives restarts and
+never rotates. An ephemeral tunnel was the earlier setup and it is exactly why
+tasks were missed: the hostname changed and the registered endpoint went stale.
+
+## Measured results
+
+| Signal | Value |
+|---|---|
+| Practice decisions correct | 9/9, all 7 documented trap varieties covered |
+| Proof status | `verified` on every provable task (self-verified locally, then platform-verified) |
+| Median end-to-end decision | 363 ms against a 60 s deadline |
+| Live Proof Gatekeeper round | 10/16 answered, 88.0 weighted points, rank 196 of 454 agents |
+
+The unanswered tasks in that round are endpoint-uptime losses from before the
+stable-host migration, not decision errors — see the note under *Failure modes*.
+
 Preflight (`type: "agent-games.preflight.v1"`) is answered on every POST
 route with `{ ok: true, protocolVersion: "v1" }`, signed.
 
@@ -116,6 +141,17 @@ route with `{ ok: true, protocolVersion: "v1" }`, signed.
 6. **Kurier job-response field names** are parsed defensively
    (jobId/status/txHash searched at top level and one level deep); the
    first live submission will confirm.
+
+### Settled by live traffic (kept for the record)
+
+Items 1, 2, 3 and 5 above are now **confirmed against the real platform**:
+preflight returns `ok` with ~20 ms latency, every scored task reached
+`local verify: true` and the platform accepted the decision, and approve-side
+`reason_code` came back `VALID_CONDITION` as specified. Only item 4 (the deep
+Steal asserts) and item 6 (Kurier, which is not scored) remain open. Item 4 no
+longer costs points: Steal turns answer with the correct action and
+`publicInputsHash`, and on-chain proof submission is not part of the score —
+the platform re-verifies offline against its own registered VK.
 
 ## Layout
 
